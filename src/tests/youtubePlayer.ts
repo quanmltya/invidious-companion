@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "./deps.ts";
+import assert from "node:assert/strict";
 
 export async function youtubePlayer(
     baseUrl: string,
@@ -12,25 +12,25 @@ export async function youtubePlayer(
         }),
     });
 
-    assertEquals(resp.status, 200, "response status code is not 200");
+    assert.equal(resp.status, 200, "response status code is not 200");
 
     const youtubeV1Player = await resp.json();
 
-    assertEquals(
+    assert.equal(
         youtubeV1Player.playabilityStatus?.status,
         "OK",
         "playabilityStatus is not OK",
     );
-    assertEquals(
+    assert.equal(
         youtubeV1Player.videoDetails?.videoId,
         "jNQXAC9IVRw",
         "videoDetails is not jNQXAC9IVRw",
     );
-    assert(
+    assert.ok(
         youtubeV1Player.streamingData?.adaptiveFormats,
         "adaptiveFormats is not present",
     );
-    assert(
+    assert.ok(
         youtubeV1Player.streamingData?.adaptiveFormats.length > 0,
         "adaptiveFormats is empty",
     );

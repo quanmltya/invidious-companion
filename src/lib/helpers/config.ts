@@ -1,19 +1,20 @@
 import { z, ZodError } from "zod";
-import { parse } from "@std/toml";
+import { parse } from "smol-toml";
+import { promises as fs } from "node:fs";
 
 export const ConfigSchema = z.object({
     server: z.object({
-        port: z.number().default(Number(Deno.env.get("PORT")) || 8282),
-        host: z.string().default(Deno.env.get("HOST") || "127.0.0.1"),
+        port: z.number().default(Number(process.env.PORT) || 8282),
+        host: z.string().default(process.env.HOST || "127.0.0.1"),
         use_unix_socket: z.boolean().default(
-            Deno.env.get("SERVER_USE_UNIX_SOCKET") === "true" || false,
+            process.env.SERVER_USE_UNIX_SOCKET === "true" || false,
         ),
         unix_socket_path: z.string().default(
-            Deno.env.get("SERVER_UNIX_SOCKET_PATH") ||
+            process.env.SERVER_UNIX_SOCKET_PATH ||
                 "/tmp/invidious-companion.sock",
         ),
         base_path: z.string()
-            .default(Deno.env.get("SERVER_BASE_PATH") || "/companion")
+            .default(process.env.SERVER_BASE_PATH || "/companion")
             .refine(
                 (path) => path.startsWith("/"),
                 {
@@ -38,7 +39,7 @@ export const ConfigSchema = z.object({
         secret_key: z.preprocess(
             (val) =>
                 val === undefined
-                    ? Deno.env.get("SERVER_SECRET_KEY") || ""
+                    ? process.env.SERVER_SECRET_KEY || ""
                     : val,
             z.string().length(16).regex(
                 /^[a-zA-Z0-9]+$/,
@@ -46,64 +47,60 @@ export const ConfigSchema = z.object({
             ),
         ).default(undefined),
         verify_requests: z.boolean().default(
-            Deno.env.get("SERVER_VERIFY_REQUESTS") === "true" || false,
+            process.env.SERVER_VERIFY_REQUESTS === "true" || false,
         ),
         encrypt_query_params: z.boolean().default(
-            Deno.env.get("SERVER_ENCRYPT_QUERY_PARAMS") === "true" || false,
+            process.env.SERVER_ENCRYPT_QUERY_PARAMS === "true" || false,
         ),
         enable_metrics: z.boolean().default(
-            Deno.env.get("SERVER_ENABLE_METRICS") === "true" || false,
+            process.env.SERVER_ENABLE_METRICS === "true" || false,
         ),
     }).strict().default({}),
     cache: z.object({
         enabled: z.boolean().default(
-            Deno.env.get("CACHE_ENABLED") === "false" ? false : true,
+            process.env.CACHE_ENABLED === "false" ? false : true,
         ),
         directory: z.string().default(
-            Deno.env.get("CACHE_DIRECTORY") || "/var/tmp",
+            process.env.CACHE_DIRECTORY || "/var/tmp",
         ),
     }).strict().default({}),
     networking: z.object({
-        proxy: z.string().nullable().default(Deno.env.get("PROXY") || null),
+        proxy: z.string().nullable().default(process.env.PROXY || null),
         ipv6_block: z.string().nullable().default(
-            Deno.env.get("NETWORKING_IPV6_BLOCK") || null,
+            process.env.NETWORKING_IPV6_BLOCK || null,
         ),
         fetch: z.object({
             timeout_ms: z.number().default(
-                Number(Deno.env.get("NETWORKING_FETCH_TIMEOUT_MS")) || 30_000,
+                Number(process.env.NETWORKING_FETCH_TIMEOUT_MS) || 30_000,
             ),
             retry: z.object({
                 enabled: z.boolean().default(
-                    Deno.env.get("NETWORKING_FETCH_RETRY_ENABLED") === "true" ||
+                    process.env.NETWORKING_FETCH_RETRY_ENABLED === "true" ||
                         false,
                 ),
                 times: z.number().optional().default(
-                    Number(Deno.env.get("NETWORKING_FETCH_RETRY_TIMES")) || 1,
+                    Number(process.env.NETWORKING_FETCH_RETRY_TIMES) || 1,
                 ),
                 initial_debounce: z.number().optional().default(
                     Number(
-                        Deno.env.get("NETWORKING_FETCH_RETRY_INITIAL_DEBOUNCE"),
+                        process.env.NETWORKING_FETCH_RETRY_INITIAL_DEBOUNCE,
                     ) || 0,
                 ),
                 debounce_multiplier: z.number().optional().default(
                     Number(
-                        Deno.env.get(
-                            "NETWORKING_FETCH_RETRY_DEBOUNCE_MULTIPLIER",
-                        ),
+                        process.env.NETWORKING_FETCH_RETRY_DEBOUNCE_MULTIPLIER,
                     ) || 0,
                 ),
             }).strict().default({}),
         }).strict().default({}),
         videoplayback: z.object({
             ump: z.boolean().default(
-                Deno.env.get("NETWORKING_VIDEOPLAYBACK_UMP") === "true" ||
+                process.env.NETWORKING_VIDEOPLAYBACK_UMP === "true" ||
                     false,
             ),
             video_fetch_chunk_size_mb: z.number().default(
                 Number(
-                    Deno.env.get(
-                        "NETWORKING_VIDEOPLAYBACK_VIDEO_FETCH_CHUNK_SIZE_MB",
-                    ),
+                    process.env.NETWORKING_VIDEOPLAYBACK_VIDEO_FETCH_CHUNK_SIZE_MB,
                 ) || 5,
             ),
         }).strict().default({}),
@@ -111,22 +108,22 @@ export const ConfigSchema = z.object({
     jobs: z.object({
         youtube_session: z.object({
             po_token_enabled: z.boolean().default(
-                Deno.env.get("JOBS_YOUTUBE_SESSION_PO_TOKEN_ENABLED") ===
+                process.env.JOBS_YOUTUBE_SESSION_PO_TOKEN_ENABLED ===
                         "false"
                     ? false
                     : true,
             ),
             frequency: z.string().default(
-                Deno.env.get("JOBS_YOUTUBE_SESSION_FREQUENCY") || "*/5 * * * *",
+                process.env.JOBS_YOUTUBE_SESSION_FREQUENCY || "*/5 * * * *",
             ),
         }).strict().default({}),
     }).strict().default({}),
     youtube_session: z.object({
         oauth_enabled: z.boolean().default(
-            Deno.env.get("YOUTUBE_SESSION_OAUTH_ENABLED") === "true" || false,
+            process.env.YOUTUBE_SESSION_OAUTH_ENABLED === "true" || false,
         ),
         cookies: z.string().default(
-            Deno.env.get("YOUTUBE_SESSION_COOKIES") || "",
+            process.env.YOUTUBE_SESSION_COOKIES || "",
         ),
     }).strict().default({}),
 }).strict();
@@ -134,8 +131,8 @@ export const ConfigSchema = z.object({
 export type Config = z.infer<typeof ConfigSchema>;
 
 export async function parseConfig() {
-    const configFileName = Deno.env.get("CONFIG_FILE") || "config/config.toml";
-    const configFileContents = await Deno.readTextFile(configFileName).catch(
+    const configFileName = process.env.CONFIG_FILE || "config/config.toml";
+    const configFileContents = await fs.readFile(configFileName, "utf-8").catch(
         () => null,
     );
     if (configFileContents) {
@@ -147,7 +144,7 @@ export async function parseConfig() {
     }
 
     try {
-        const rawConfig = configFileContents ? parse(configFileContents) : {};
+        const rawConfig = configFileContents ? (parse(configFileContents) as Record<string, unknown>) : {};
         const validatedConfig = ConfigSchema.parse(rawConfig);
 
         console.log("Loaded Configuration", validatedConfig);

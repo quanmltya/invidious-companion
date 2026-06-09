@@ -1,6 +1,4 @@
-import { decodeBase64 } from "@std/encoding/base64";
-import { Aes } from "crypto/aes.ts";
-import { Ecb, Padding } from "crypto/block-modes.ts";
+import crypto from "node:crypto";
 import type { Config } from "./config.ts";
 
 export const verifyRequest = (
@@ -9,21 +7,17 @@ export const verifyRequest = (
     config: Config,
 ): boolean => {
     try {
-        const decipher = new Ecb(
-            Aes,
-            new TextEncoder().encode(config.server.secret_key),
-            Padding.PKCS7,
-        );
+        const key = Buffer.from(config.server.secret_key, "utf8");
+        const decipher = crypto.createDecipheriv("aes-128-ecb", key, null);
+        
+        // Convert base64url to base64
+        const base64Str = stringToCheck.replace(/-/g, "+").replace(/_/g, "/");
+        
+        let decrypted = decipher.update(base64Str, "base64", "utf8");
+        decrypted += decipher.final("utf8");
 
-        const encryptedData = new TextDecoder().decode(
-            decipher.decrypt(
-                decodeBase64(
-                    stringToCheck.replace(/-/g, "+").replace(/_/g, "/"),
-                ),
-            ),
-        );
-        const [parsedTimestamp, parsedVideoId] = encryptedData.split("|");
-        const parsedTimestampInt = parseInt(parsedTimestamp);
+        const [parsedTimestamp, parsedVideoId] = decrypted.split("|");
+        const parsedTimestampInt = parseInt(parsedTimestamp, 10);
         const timestampNow = Math.round(Date.now() / 1000);
         if (parsedVideoId !== videoId) {
             return false;

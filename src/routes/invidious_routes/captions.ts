@@ -5,7 +5,7 @@ import {
     youtubePlayerParsing,
     youtubeVideoInfo,
 } from "../../lib/helpers/youtubePlayerHandling.ts";
-import type { CaptionTrackData } from "youtubei.js/PlayerCaptionsTracklist";
+import type { CaptionTrackData } from "youtubei.js/dist/src/parser/classes/PlayerCaptionsTracklist.js";
 import { handleTranscripts } from "../../lib/helpers/youtubeTranscriptsHandling.ts";
 import { HTTPException } from "hono/http-exception";
 import { validateVideoId } from "../../lib/helpers/validateVideoId.ts";

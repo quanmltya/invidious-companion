@@ -1,4 +1,4 @@
-import { assertEquals } from "./deps.ts";
+import assert from "node:assert/strict";
 
 export async function latestVersion(baseUrl: string) {
     const resp = await fetch(
@@ -10,5 +10,5 @@ export async function latestVersion(baseUrl: string) {
     );
 
     await resp.body?.cancel();
-    assertEquals(resp.status, 302);
+    assert.equal(resp.status, 302);
 }

@@ -4,16 +4,9 @@ import { encodeRFC5987ValueChars } from "../lib/helpers/encodeRFC5987ValueChars.
 import { decryptQuery } from "../lib/helpers/encryptQuery.ts";
 import { StreamingApi } from "hono/utils/stream";
 
-let getFetchClientLocation = "getFetchClient";
-if (Deno.env.get("GET_FETCH_CLIENT_LOCATION")) {
-    if (Deno.env.has("DENO_COMPILED")) {
-        getFetchClientLocation = Deno.mainModule.replace("src/main.ts", "") +
-            Deno.env.get("GET_FETCH_CLIENT_LOCATION");
-    } else {
-        getFetchClientLocation = Deno.env.get(
-            "GET_FETCH_CLIENT_LOCATION",
-        ) as string;
-    }
+let getFetchClientLocation = "../lib/helpers/getFetchClient.js";
+if (process.env.GET_FETCH_CLIENT_LOCATION) {
+    getFetchClientLocation = process.env.GET_FETCH_CLIENT_LOCATION;
 }
 const { getFetchClient } = await import(getFetchClientLocation);
 

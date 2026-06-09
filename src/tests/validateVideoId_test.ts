@@ -1,8 +1,9 @@
-import { assertEquals } from "./deps.ts";
+import { describe, it, beforeEach } from "node:test";
+import assert from "node:assert/strict";
 import { validateVideoId } from "../lib/helpers/validateVideoId.ts";
 
-Deno.test("Video ID validation", async (t) => {
-    await t.step("accepts valid YouTube video IDs", () => {
+describe("Video ID validation", () => {
+    it("accepts valid YouTube video IDs", () => {
         const validIds = [
             "jNQXAC9IVRw", // Standard video ID from tests
             "dQw4w9WgXcQ", // Rick Roll video
@@ -15,7 +16,7 @@ Deno.test("Video ID validation", async (t) => {
         ];
 
         for (const id of validIds) {
-            assertEquals(
+            assert.equal(
                 validateVideoId(id),
                 true,
                 `Video ID "${id}" should be valid`,
@@ -23,7 +24,7 @@ Deno.test("Video ID validation", async (t) => {
         }
     });
 
-    await t.step("rejects invalid video IDs", () => {
+    it("rejects invalid video IDs", () => {
         const invalidIds = [
             "", // Empty string
             "short", // Too short
@@ -66,7 +67,7 @@ Deno.test("Video ID validation", async (t) => {
         ];
 
         for (const id of invalidIds) {
-            assertEquals(
+            assert.equal(
                 validateVideoId(id),
                 false,
                 `Video ID "${id}" should be invalid`,
@@ -74,21 +75,21 @@ Deno.test("Video ID validation", async (t) => {
         }
     });
 
-    await t.step("handles edge cases", () => {
+    it("handles edge cases", () => {
         // Test null/undefined handling with proper type casting
-        assertEquals(
+        assert.equal(
             validateVideoId(null as unknown as string),
             false,
             "null should be invalid",
         );
-        assertEquals(
+        assert.equal(
             validateVideoId(undefined as unknown as string),
             false,
             "undefined should be invalid",
         );
 
         // Test numbers
-        assertEquals(
+        assert.equal(
             validateVideoId(12345678901 as unknown as string),
             false,
             "Number should be invalid",

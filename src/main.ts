@@ -1,12 +1,14 @@
 import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { createAdaptorServer } from "@hono/node-server";
+import { existsSync, unlinkSync, chmodSync } from "node:fs";
 import { companionRoutes, miscRoutes } from "./routes/index.ts";
 import { Innertube, Platform } from "youtubei.js";
 import { poTokenGenerate, type TokenMinter } from "./lib/jobs/potoken.ts";
 import { USER_AGENT } from "bgutils";
-import { retry } from "@std/async";
+import { retry } from "./lib/helpers/retry.ts";
 import type { HonoVariables } from "./lib/types/HonoVariables.ts";
-import { parseArgs } from "@std/cli/parse-args";
-import { existsSync } from "@std/fs/exists";
+import minimist from "minimist";
 
 import { parseConfig } from "./lib/helpers/config.ts";
 const config = await parseConfig();
@@ -14,7 +16,7 @@ import { Metrics } from "./lib/helpers/metrics.ts";
 import { PLAYER_ID } from "./constants.ts";
 import { jsInterpreter } from "./lib/helpers/jsInterpreter.ts";
 
-const args = parseArgs(Deno.args);
+const args = minimist(process.argv.slice(2));
 
 if (args._version_date && args._version_commit) {
     console.log(
@@ -22,16 +24,9 @@ if (args._version_date && args._version_commit) {
     );
 }
 
-let getFetchClientLocation = "getFetchClient";
-if (Deno.env.get("GET_FETCH_CLIENT_LOCATION")) {
-    if (Deno.env.has("DENO_COMPILED")) {
-        getFetchClientLocation = Deno.mainModule.replace("src/main.ts", "") +
-            Deno.env.get("GET_FETCH_CLIENT_LOCATION");
-    } else {
-        getFetchClientLocation = Deno.env.get(
-            "GET_FETCH_CLIENT_LOCATION",
-        ) as string;
-    }
+let getFetchClientLocation = "./lib/helpers/getFetchClient.js";
+if (process.env.GET_FETCH_CLIENT_LOCATION) {
+    getFetchClientLocation = process.env.GET_FETCH_CLIENT_LOCATION;
 }
 const { getFetchClient } = await import(getFetchClientLocation);
 
@@ -87,12 +82,8 @@ if (!innertubeClientOauthEnabled) {
         // Initialize tokenMinter in background to not block server startup
         console.log("[INFO] Starting PO token generation in background...");
         retry(
-            poTokenGenerate.bind(
-                poTokenGenerate,
-                config,
-                metrics,
-            ),
-            { minTimeout: 1_000, maxTimeout: 60_000, multiplier: 5, jitter: 0 },
+            () => poTokenGenerate(config, metrics),
+            { minTimeout: 1_000, maxTimeout: 60_000, multiplier: 5 },
         ).then((result) => {
             innertubeClient = result.innertubeClient;
             tokenMinter = result.tokenMinter;
@@ -106,33 +97,38 @@ if (!innertubeClientOauthEnabled) {
         // If PO token is not enabled, resolve immediately
         tokenMinterReadyResolve?.();
     }
-    Deno.cron(
-        "regenerate youtube session",
-        config.jobs.youtube_session.frequency,
-        { backoffSchedule: [5_000, 15_000, 60_000, 180_000] },
-        async () => {
-            if (innertubeClientJobPoTokenEnabled) {
-                try {
-                    ({ innertubeClient, tokenMinter } = await poTokenGenerate(
-                        config,
-                        metrics,
-                    ));
-                } catch (err) {
-                    metrics?.potokenGenerationFailure.inc();
-                    throw err;
+
+    import("node-cron").then((cron) => {
+        cron.default.schedule(
+            config.jobs.youtube_session.frequency,
+            async () => {
+                if (innertubeClientJobPoTokenEnabled) {
+                    try {
+                        ({ innertubeClient, tokenMinter } = await poTokenGenerate(
+                            config,
+                            metrics,
+                        ));
+                    } catch (err) {
+                        metrics?.potokenGenerationFailure.inc();
+                        console.error("[ERROR] Failed to regenerate PO token in cron job:", err);
+                    }
+                } else {
+                    try {
+                        innertubeClient = await Innertube.create({
+                            enable_session_cache: false,
+                            fetch: getFetchClient(config),
+                            retrieve_player: innertubeClientFetchPlayer,
+                            user_agent: USER_AGENT,
+                            cookie: innertubeClientCookies || undefined,
+                            player_id: PLAYER_ID,
+                        });
+                    } catch (err) {
+                        console.error("[ERROR] Failed to recreate session in cron job:", err);
+                    }
                 }
-            } else {
-                innertubeClient = await Innertube.create({
-                    enable_session_cache: false,
-                    fetch: getFetchClient(config),
-                    retrieve_player: innertubeClientFetchPlayer,
-                    user_agent: USER_AGENT,
-                    cookie: innertubeClientCookies || undefined,
-                    player_id: PLAYER_ID,
-                });
-            }
-        },
-    );
+            },
+        );
+    });
 } else if (innertubeClientOauthEnabled) {
     // Fired when waiting for the user to authorize the sign in attempt.
     innertubeClient.session.on("auth-pending", (data) => {
@@ -175,15 +171,17 @@ miscRoutes(app, config);
 app.route("/", companionApp);
 
 // This cannot be changed since companion restricts the
-// files it can access using deno `--allow-write` argument
+// files it can access using --allow-write argument in Deno (kept for compatibility)
 const udsPath = config.server.unix_socket_path;
 
 export function run(signal: AbortSignal, port: number, hostname: string) {
+    let server: any;
+
     if (config.server.use_unix_socket) {
         try {
             if (existsSync(udsPath)) {
                 // Delete the unix domain socket manually before starting the server
-                Deno.removeSync(udsPath);
+                unlinkSync(udsPath);
             }
         } catch (err) {
             console.log(
@@ -192,53 +190,64 @@ export function run(signal: AbortSignal, port: number, hostname: string) {
             );
         }
 
-        const srv = Deno.serve(
-            {
-                onListen() {
-                    Deno.chmodSync(udsPath, 0o777);
-                    console.log(
-                        `[INFO] Server successfully started at ${udsPath} with permissions set to 777.`,
-                    );
-                },
-                signal: signal,
-                path: udsPath,
-            },
-            app.fetch,
-        );
-
-        return srv;
+        server = createAdaptorServer(app);
+        server.listen(udsPath, () => {
+            try {
+                chmodSync(udsPath, 0o777);
+            } catch (err) {
+                console.log(`[ERROR] Failed to set permissions 777 on '${udsPath}':`, err);
+            }
+            console.log(
+                `[INFO] Server successfully started at ${udsPath} with permissions set to 777.`,
+            );
+        });
     } else {
-        return Deno.serve(
+        server = serve(
             {
-                onListen() {
-                    console.log(
-                        `[INFO] Server successfully started at http://${config.server.host}:${config.server.port}${config.server.base_path}`,
-                    );
-                },
-                signal: signal,
                 port: port,
                 hostname: hostname,
+                fetch: app.fetch,
             },
-            app.fetch,
+            () => {
+                console.log(
+                    `[INFO] Server successfully started at http://${config.server.host}:${config.server.port}${config.server.base_path}`,
+                );
+            },
         );
     }
+
+    if (signal) {
+        signal.addEventListener("abort", () => {
+            console.log("Abort signal received, closing server...");
+            server.close();
+        });
+    }
+
+    return server;
 }
-if (import.meta.main) {
+
+const isMainModule = process.argv[1] && (
+    process.argv[1].endsWith("main.ts") || 
+    process.argv[1].endsWith("main.js") ||
+    process.argv[1].endsWith("main.tsx")
+);
+
+if (isMainModule) {
     const controller = new AbortController();
     const { signal } = controller;
     run(signal, config.server.port, config.server.host);
 
-    if (Deno.build.os !== "windows") {
-        Deno.addSignalListener("SIGTERM", () => {
-            console.log("Caught SIGINT, shutting down...");
+    if (process.platform !== "win32") {
+        process.on("SIGTERM", () => {
+            console.log("Caught SIGTERM, shutting down...");
             controller.abort();
-            Deno.exit(0);
+            process.exit(0);
         });
     }
 
-    Deno.addSignalListener("SIGINT", () => {
+    process.on("SIGINT", () => {
         console.log("Caught SIGINT, shutting down...");
         controller.abort();
-        Deno.exit(0);
+        process.exit(0);
     });
 }

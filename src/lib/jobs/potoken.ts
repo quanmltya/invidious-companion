@@ -1,3 +1,4 @@
+import { Worker } from "node:worker_threads";
 import { Innertube } from "youtubei.js";
 import {
     youtubePlayerParsing,
@@ -5,21 +6,26 @@ import {
 } from "../helpers/youtubePlayerHandling.ts";
 import type { Config } from "../helpers/config.ts";
 import { Metrics } from "../helpers/metrics.ts";
-let getFetchClientLocation = "getFetchClient";
-if (Deno.env.get("GET_FETCH_CLIENT_LOCATION")) {
-    if (Deno.env.has("DENO_COMPILED")) {
-        getFetchClientLocation = Deno.mainModule.replace("src/main.ts", "") +
-            Deno.env.get("GET_FETCH_CLIENT_LOCATION");
-    } else {
-        getFetchClientLocation = Deno.env.get(
-            "GET_FETCH_CLIENT_LOCATION",
-        ) as string;
-    }
+
+let getFetchClientLocation = "../helpers/getFetchClient.js";
+if (process.env.GET_FETCH_CLIENT_LOCATION) {
+    getFetchClientLocation = process.env.GET_FETCH_CLIENT_LOCATION;
 }
 const { getFetchClient } = await import(getFetchClientLocation);
 
 import { InputMessage, OutputMessageSchema } from "./worker.ts";
 import { PLAYER_ID } from "../../constants.ts";
+
+// Polyfill Promise.withResolvers for older Node.js versions
+function withResolvers<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: any) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
 
 interface TokenGeneratorWorker extends Omit<Worker, "postMessage"> {
     postMessage(message: InputMessage): void;
@@ -29,22 +35,22 @@ const workers: TokenGeneratorWorker[] = [];
 
 function createMinter(worker: TokenGeneratorWorker) {
     return (videoId: string): Promise<string> => {
-        const { promise, resolve } = Promise.withResolvers<string>();
+        const { promise, resolve } = withResolvers<string>();
         // generate a UUID to identify the request as many minter calls
         // may be made within a timespan, and this function will be
         // informed about all of them until it's got its own
         const requestId = crypto.randomUUID();
-        const listener = (message: MessageEvent) => {
-            const parsedMessage = OutputMessageSchema.parse(message.data);
+        const listener = (data: any) => {
+            const parsedMessage = OutputMessageSchema.parse(data);
             if (
                 parsedMessage.type === "content-token" &&
                 parsedMessage.requestId === requestId
             ) {
-                worker.removeEventListener("message", listener);
+                worker.off("message", listener);
                 resolve(parsedMessage.contentToken);
             }
         };
-        worker.addEventListener("message", listener);
+        worker.on("message", listener);
         worker.postMessage({
             type: "content-token-request",
             videoId,
@@ -62,21 +68,19 @@ export const poTokenGenerate = (
     config: Config,
     metrics: Metrics | undefined,
 ): Promise<{ innertubeClient: Innertube; tokenMinter: TokenMinter }> => {
-    const { promise, resolve, reject } = Promise.withResolvers<
+    const { promise, resolve, reject } = withResolvers<
         Awaited<ReturnType<typeof poTokenGenerate>>
     >();
 
-    const worker: TokenGeneratorWorker = new Worker(
-        new URL("./worker.ts", import.meta.url).href,
-        {
-            type: "module",
-            name: "PO Token Generator",
-        },
-    );
+    const worker = new Worker(
+        new URL("./worker.js", import.meta.url),
+    ) as unknown as TokenGeneratorWorker;
+    
     // take note of the worker so we can kill it once a new one takes its place
     workers.push(worker);
-    worker.addEventListener("message", async (event) => {
-        const parsedMessage = OutputMessageSchema.parse(event.data);
+    
+    worker.on("message", async (data) => {
+        const parsedMessage = OutputMessageSchema.parse(data);
 
         // worker is listening for messages
         if (parsedMessage.type === "ready") {
@@ -130,6 +134,11 @@ export const poTokenGenerate = (
                 reject(err);
             }
         }
+    });
+
+    worker.on("error", (err) => {
+        console.error("[ERROR] Worker thread error:", err);
+        reject(err);
     });
 
     return promise;

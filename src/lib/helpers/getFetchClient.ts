@@ -1,101 +1,108 @@
-import { retry, type RetryOptions } from "@std/async";
+import { fetch as undiciFetch, ProxyAgent, Agent, Pool } from "undici";
+import { retry, type RetryOptions } from "./retry.ts";
 import type { Config } from "./config.ts";
 import { generateRandomIPv6 } from "./ipv6Rotation.ts";
 
 type FetchInputParameter = Parameters<typeof fetch>[0];
-type FetchInitParameterWithClient =
-    | RequestInit
-    | RequestInit & { client: Deno.HttpClient };
-type FetchReturn = ReturnType<typeof fetch>;
+type FetchInitParameterWithDispatcher = RequestInit & { dispatcher?: any };
+type FetchReturn = Promise<Response>;
 
 export const getFetchClient = (config: Config): {
     (
         input: FetchInputParameter,
-        init?: FetchInitParameterWithClient,
+        init?: FetchInitParameterWithDispatcher,
     ): FetchReturn;
 } => {
     const proxyAddress = config.networking.proxy;
     const ipv6Block = config.networking.ipv6_block;
 
     const fetchMaxAttempts = config.networking.fetch?.retry?.times;
-    const fetchInitialDebounce = config.networking.fetch?.retry
-        ?.initial_debounce;
-    const fetchDebounceMultiplier = config.networking.fetch?.retry
-        ?.debounce_multiplier;
+    const fetchInitialDebounce = config.networking.fetch?.retry?.initial_debounce;
+    const fetchDebounceMultiplier = config.networking.fetch?.retry?.debounce_multiplier;
     const retryOptions: RetryOptions = {
         maxAttempts: fetchMaxAttempts,
         minTimeout: fetchInitialDebounce,
         multiplier: fetchDebounceMultiplier,
-        jitter: 0,
     };
 
-    // If proxy or IPv6 rotation is configured, create a custom HTTP client
-    // IPv6 rotation generates a unique localAddress for each request to help
-    // avoid YouTube's "Please login" errors
+    // If proxy or IPv6 rotation is configured
     if (proxyAddress || ipv6Block) {
-        // For proxy-only (no IPv6 rotation), reuse a single client
-        const reusableClient = proxyAddress && !ipv6Block
-            ? Deno.createHttpClient({ proxy: { url: proxyAddress } })
-            : undefined;
+        // For proxy-only (no IPv6 rotation), reuse a single ProxyAgent
+        let reusableDispatcher: any;
+        if (proxyAddress && !ipv6Block) {
+            reusableDispatcher = new ProxyAgent(proxyAddress);
+        }
 
         return async (
             input: FetchInputParameter,
-            init?: RequestInit,
+            init?: FetchInitParameterWithDispatcher,
         ) => {
-            let client: Deno.HttpClient;
+            let dispatcher: any;
+            let shouldClose = false;
 
-            if (reusableClient) {
-                client = reusableClient;
+            if (reusableDispatcher) {
+                dispatcher = reusableDispatcher;
             } else {
-                const clientOptions: Deno.CreateHttpClientOptions = {};
+                shouldClose = true;
+                const localIp = ipv6Block ? generateRandomIPv6(ipv6Block) : undefined;
                 if (proxyAddress) {
-                    clientOptions.proxy = { url: proxyAddress };
+                    dispatcher = new ProxyAgent({
+                        uri: proxyAddress,
+                        clientFactory: (origin, opts) => {
+                            return new Pool(origin, {
+                                ...opts,
+                                connect: {
+                                    ...opts?.connect,
+                                    localAddress: localIp,
+                                },
+                            });
+                        },
+                    });
+                } else {
+                    dispatcher = new Agent({
+                        connect: {
+                            localAddress: localIp,
+                        },
+                    });
                 }
-                if (ipv6Block) {
-                    clientOptions.localAddress = generateRandomIPv6(ipv6Block);
-                }
-                client = Deno.createHttpClient(clientOptions);
             }
 
             const fetchRes = await fetchShim(config, retryOptions, input, {
-                client,
-                headers: init?.headers,
-                method: init?.method,
-                body: init?.body,
+                ...init,
+                dispatcher,
             });
 
-            // If using a reusable client, return directly without closing
-            if (reusableClient) {
-                return new Response(fetchRes.body, {
-                    status: fetchRes.status,
-                    headers: fetchRes.headers,
-                });
+            // If using a reusable dispatcher, return directly
+            if (!shouldClose) {
+                return fetchRes;
             }
 
-            // For per-request clients (IPv6 rotation), close after body is consumed
+            // For per-request dispatchers (IPv6 rotation), close after body is consumed
             const originalBody = fetchRes.body;
             if (!originalBody) {
-                client.close();
-                return new Response(null, {
-                    status: fetchRes.status,
-                    headers: fetchRes.headers,
-                });
+                dispatcher.close().catch(() => {});
+                return fetchRes;
             }
 
             const reader = originalBody.getReader();
             const wrappedBody = new ReadableStream({
                 async pull(controller) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                        controller.close();
-                        client.close();
-                        return;
+                    try {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            controller.close();
+                            dispatcher.close().catch(() => {});
+                            return;
+                        }
+                        controller.enqueue(value);
+                    } catch (err) {
+                        controller.error(err);
+                        dispatcher.close().catch(() => {});
                     }
-                    controller.enqueue(value);
                 },
                 cancel() {
                     reader.cancel();
-                    client.close();
+                    dispatcher.close().catch(() => {});
                 },
             });
 
@@ -106,27 +113,26 @@ export const getFetchClient = (config: Config): {
         };
     }
 
-    return (input: FetchInputParameter, init?: FetchInitParameterWithClient) =>
+    return (input: FetchInputParameter, init?: FetchInitParameterWithDispatcher) =>
         fetchShim(config, retryOptions, input, init);
 };
 
-function fetchShim(
+async function fetchShim(
     config: Config,
     retryOptions: RetryOptions,
     input: FetchInputParameter,
-    init?: FetchInitParameterWithClient,
+    init?: FetchInitParameterWithDispatcher,
 ): FetchReturn {
     const fetchTimeout = config.networking.fetch?.timeout_ms;
     const fetchRetry = config.networking.fetch?.retry?.enabled;
 
     const callFetch = () =>
-        fetch(input, {
-            // only set the AbortSignal if the timeout is supplied in the config
+        undiciFetch(input, {
             signal: fetchTimeout
                 ? AbortSignal.timeout(Number(fetchTimeout))
                 : null,
             ...(init || {}),
-        });
-    // if retry enabled, call retry with the fetch shim, otherwise pass the fetch shim back directly
+        }) as unknown as Promise<Response>;
+
     return fetchRetry ? retry(callFetch, retryOptions) : callFetch();
 }

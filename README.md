@@ -10,17 +10,25 @@ Companion for Invidious which handle all the video stream retrieval from YouTube
 
 ### Requirements
 
-- [deno](https://docs.deno.com/runtime/)  
+- [Node.js](https://nodejs.org/) v20 or newer
+- [npm](https://www.npmjs.com/)
+
+### Install dependencies
+
+```
+npm install
+```
 
 ### Run Locally (development)
 
 ```
-SERVER_SECRET_KEY=CHANGEME deno task dev
+SERVER_SECRET_KEY=CHANGEME npm run dev
 ```
 
-### Available tasks using deno
+### Available scripts
 
-- `deno task dev`: Launch Invidious companion in debug mode
-- `deno task compile`: Compile the project to a single file.
-- `deno task test`: Test all the tests for Invidious companion
-- `deno task format`: Format all the .ts files in the project.
+- `npm run dev`: Launch Invidious companion in development mode (using tsx)
+- `npm run build`: Compile the project to `dist/` using TypeScript
+- `npm run start`: Run the compiled output with Node.js
+- `npm test`: Run unit tests
+- `npm run test:integration`: Run integration tests (requires network)

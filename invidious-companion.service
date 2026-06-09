@@ -10,7 +10,7 @@ Type=simple
 User=invidious
 Group=invidious
 
-# Security hardening - balanced approach for Deno applications
+# Security hardening
 NoNewPrivileges=true
 PrivateDevices=true
 PrivateTmp=true
@@ -31,7 +31,7 @@ BindPaths=/home/invidious/tmp
 BindPaths=/var/tmp/youtubei.js
 
 WorkingDirectory=/home/invidious/invidious-companion
-ExecStart=/home/invidious/invidious-companion/invidious_companion
+ExecStart=/usr/bin/node /home/invidious/invidious-companion/dist/src/main.js
 
 Environment=SERVER_SECRET_KEY=CHANGE_ME
 Environment=CACHE_DIRECTORY=/var/tmp/youtubei.js

@@ -1,5 +1,5 @@
 import { ApiResponse, Innertube } from "youtubei.js";
-import NavigationEndpoint from "youtubei.js/NavigationEndpoint";
+import NavigationEndpoint from "youtubei.js/dist/src/parser/classes/NavigationEndpoint.js";
 import type { TokenMinter } from "../jobs/potoken.ts";
 
 import type { Config } from "./config.ts";

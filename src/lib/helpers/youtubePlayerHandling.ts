@@ -1,24 +1,25 @@
 import { ApiResponse, Innertube, YT } from "youtubei.js";
-import { generateRandomString } from "youtubei.js/Utils";
-import { compress, decompress } from "brotli";
+import { generateRandomString } from "youtubei.js/dist/src/utils/Utils.js";
+import { brotliCompressSync as compress, brotliDecompressSync as decompress } from "node:zlib";
 import type { TokenMinter } from "../jobs/potoken.ts";
 import { Metrics } from "../helpers/metrics.ts";
-let youtubePlayerReqLocation = "youtubePlayerReq";
-if (Deno.env.get("YT_PLAYER_REQ_LOCATION")) {
-    if (Deno.env.has("DENO_COMPILED")) {
-        youtubePlayerReqLocation = Deno.mainModule.replace("src/main.ts", "") +
-            Deno.env.get("YT_PLAYER_REQ_LOCATION");
-    } else {
-        youtubePlayerReqLocation = Deno.env.get(
-            "YT_PLAYER_REQ_LOCATION",
-        ) as string;
-    }
+import { FileKv } from "./kv.ts";
+
+let youtubePlayerReqLocation = "./youtubePlayerReq.js";
+if (process.env.YT_PLAYER_REQ_LOCATION) {
+    youtubePlayerReqLocation = process.env.YT_PLAYER_REQ_LOCATION;
 }
 const { youtubePlayerReq } = await import(youtubePlayerReqLocation);
 
 import type { Config } from "./config.ts";
 
-const kv = await Deno.openKv();
+let kv: FileKv | undefined;
+const getKv = (cacheDir: string) => {
+    if (!kv) {
+        kv = new FileKv(cacheDir);
+    }
+    return kv;
+};
 
 export const youtubePlayerParsing = async ({
     innertubeClient,
@@ -36,8 +37,9 @@ export const youtubePlayerParsing = async ({
     overrideCache?: boolean;
 }): Promise<object> => {
     const cacheEnabled = overrideCache ? false : config.cache.enabled;
+    const kvStore = getKv(config.cache.directory);
 
-    const videoCached = (await kv.get(["video_cache", videoId]))
+    const videoCached = (await kvStore.get(["video_cache", videoId]))
         .value as Uint8Array;
 
     if (videoCached != null && cacheEnabled) {
@@ -143,7 +145,7 @@ export const youtubePlayerParsing = async ({
             metrics?.innertubeSuccessfulRequest.inc();
             if (cacheEnabled) {
                 (async () => {
-                    await kv.set(
+                    await kvStore.set(
                         ["video_cache", videoId],
                         compress(
                             new TextEncoder().encode(

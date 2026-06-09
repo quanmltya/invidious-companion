@@ -1,4 +1,4 @@
-import { assertEquals } from "./deps.ts";
+import assert from "node:assert/strict";
 
 export async function dashManifest(baseUrl: string) {
     const resp = await fetch(
@@ -9,5 +9,5 @@ export async function dashManifest(baseUrl: string) {
     );
 
     await resp.body?.cancel();
-    assertEquals(resp.status, 200, "response status code is not 200");
+    assert.equal(resp.status, 200, "response status code is not 200");
 }

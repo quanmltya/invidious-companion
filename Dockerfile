@@ -6,8 +6,7 @@ ARG THC_VERSION='0.39.0' \
     TINI_VERSION='0.19.0'
 
 # Default values for variables that change less often
-ARG DENO_DIR='/deno-dir' \
-    GH_BASE_URL='https://github.com' \
+ARG GH_BASE_URL='https://github.com' \
     THC_PORT_NAME='PORT' \
     HOST='0.0.0.0' \
     PORT='8282'
@@ -19,14 +18,8 @@ ARG THC_AMD64_SHA256='cb1797948015da46c222764a99ee30c06a6a9a30f5b87f212a28ea3c6d
     TINI_ARM64_SHA256='07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81'
 
 # we can use these aliases and let dependabot remain simple
-# inspired by:
-# https://github.com/dependabot/dependabot-core/issues/2057#issuecomment-1351660410
 FROM alpine:3.23 AS dependabot-alpine
 FROM debian:13-slim AS dependabot-debian
-
-# Retrieve the deno binary from the repository
-FROM denoland/deno:bin-2.8.1 AS deno-bin
-
 
 # Stage for creating the non-privileged user
 FROM dependabot-alpine AS user-stage
@@ -86,45 +79,28 @@ ARG TINI_VERSION
 ENV TINI_VERSION="${TINI_VERSION}"
 COPY --from=tini-download /tini /tini
 
-# Stage for using git from Debian
-FROM dependabot-debian AS debian-git
-RUN DEBIAN_FRONTEND='noninteractive' && export DEBIAN_FRONTEND && \
-    apt-get update && apt-get install -y git
+# Build stage: Node.js builder
+FROM node:20-slim AS builder
 
-# Stage for using deno on Debian
-FROM debian-git AS debian-deno
+WORKDIR /app
 
 # cache dir for youtube.js library
 RUN mkdir -v -p /var/tmp/youtubei.js
 
-ARG DENO_DIR
-RUN useradd --uid 1993 --user-group deno \
-  && mkdir -v "${DENO_DIR}" \
-  && chown deno:deno "${DENO_DIR}"
+# Copy package files and install dependencies
+COPY package.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --omit=dev
 
-ENV DENO_DIR="${DENO_DIR}" \
-    DENO_INSTALL_ROOT='/usr/local'
-
-COPY --from=deno-bin /deno /usr/bin/deno
-
-# Create a builder using deno on Debian
-FROM debian-deno AS builder
-
-WORKDIR /app
-
-COPY deno.lock ./
-COPY deno.json ./
-
+COPY tsconfig.json ./
 COPY ./src/ ./src/
 
-# To let the `deno task compile` know the current commit on which
-# Invidious companion is being built, similar to how Invidious does it.
-# Dependencies are cached in ${DENO_DIR} for our deno builder
+# Build TypeScript → dist/
 RUN --mount=type=bind,rw,source=.git,target=/app/.git \
-    --mount=type=cache,target="${DENO_DIR}" \
-    deno task compile
+    npm run build
 
-FROM gcr.io/distroless/cc AS app
+# Runtime stage
+FROM node:20-slim AS app
 
 # Copy group file for the non-privileged user from the user-stage
 COPY --from=user-stage /etc/group /etc/group
@@ -141,7 +117,10 @@ COPY --from=builder --chown=appuser:nogroup /var/tmp/youtubei.js /var/tmp/youtub
 # Set the working directory
 WORKDIR /app
 
-COPY --from=builder /app/invidious_companion ./
+# Copy built app and production dependencies
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./
 
 ARG HOST PORT THC_VERSION THC_PORT_NAME TINI_VERSION
 EXPOSE "${PORT}/tcp"
@@ -159,6 +138,6 @@ COPY ./config/ ./config/
 # Switch to non-privileged user
 USER appuser
 
-ENTRYPOINT ["/tini", "--", "/app/invidious_companion"]
+ENTRYPOINT ["/tini", "--", "node", "/app/dist/src/main.js"]
 
 HEALTHCHECK --interval=5s --timeout=5s --start-period=10s --retries=5 CMD ["/thc"]

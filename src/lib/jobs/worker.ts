@@ -1,5 +1,4 @@
-/// <reference lib="webworker" />
-
+import { parentPort, isMainThread } from "node:worker_threads";
 import { z } from "zod";
 import { Config, ConfigSchema } from "../helpers/config.ts";
 import { BG, buildURL, GOOG_API_KEY, USER_AGENT } from "bgutils";
@@ -7,16 +6,10 @@ import type { WebPoSignalOutput } from "bgutils";
 import { JSDOM } from "jsdom";
 import { Innertube } from "youtubei.js";
 import { PLAYER_ID } from "../../constants.ts";
-let getFetchClientLocation = "getFetchClient";
-if (Deno.env.get("GET_FETCH_CLIENT_LOCATION")) {
-    if (Deno.env.has("DENO_COMPILED")) {
-        getFetchClientLocation = Deno.mainModule.replace("src/main.ts", "") +
-            Deno.env.get("GET_FETCH_CLIENT_LOCATION");
-    } else {
-        getFetchClientLocation = Deno.env.get(
-            "GET_FETCH_CLIENT_LOCATION",
-        ) as string;
-    }
+
+let getFetchClientLocation = "../helpers/getFetchClient.js";
+if (process.env.GET_FETCH_CLIENT_LOCATION) {
+    getFetchClientLocation = process.env.GET_FETCH_CLIENT_LOCATION;
 }
 
 type FetchFunction = typeof fetch;
@@ -74,19 +67,15 @@ type OutputMessage = z.infer<typeof OutputMessageSchema>;
 
 const IntegrityTokenResponse = z.tuple([z.string()]).rest(z.any());
 
-const isWorker = typeof WorkerGlobalScope !== "undefined" &&
-    self instanceof WorkerGlobalScope;
-if (isWorker) {
-    // helper function to force type-checking
-    const untypedPostmessage = self.postMessage.bind(self);
+if (!isMainThread && parentPort) {
     const postMessage = (message: OutputMessage) => {
-        untypedPostmessage(message);
+        parentPort!.postMessage(message);
     };
 
     let minter: BG.WebPoMinter;
 
-    onmessage = async (event) => {
-        const message = InputMessageSchema.parse(event.data);
+    parentPort.on("message", async (data) => {
+        const message = InputMessageSchema.parse(data);
         if (message.type === "initialise") {
             const fetchImpl: typeof fetch = await getFetchClient(
                 message.config,
@@ -127,7 +116,7 @@ if (isWorker) {
                 requestId: message.requestId,
             });
         }
-    };
+    });
 
     postMessage({ type: "ready" });
 }
@@ -165,7 +154,6 @@ async function setup(
     Object.assign(globalThis, {
         window: dom.window,
         document: dom.window.document,
-        // location: dom.window.location, // --- doesn't seem to be necessary and the Web Worker doesn't like it
         origin: dom.window.origin,
     });
 
