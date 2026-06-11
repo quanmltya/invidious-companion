@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { encodeRFC5987ValueChars } from "../lib/helpers/encodeRFC5987ValueChars.ts";
-import { decryptQuery } from "../lib/helpers/encryptQuery.ts";
+import { encodeRFC5987ValueChars } from "../lib/helpers/encodeRFC5987ValueChars.js";
+import { decryptQuery } from "../lib/helpers/encryptQuery.js";
 import { StreamingApi } from "hono/utils/stream";
 
 let getFetchClientLocation = "../lib/helpers/getFetchClient.js";

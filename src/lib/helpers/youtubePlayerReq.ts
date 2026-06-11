@@ -1,8 +1,8 @@
 import { ApiResponse, Innertube } from "youtubei.js";
-import NavigationEndpoint from "youtubei.js/dist/src/parser/classes/NavigationEndpoint.js";
-import type { TokenMinter } from "../jobs/potoken.ts";
+import NavigationEndpoint from "../../../node_modules/youtubei.js/dist/src/parser/classes/NavigationEndpoint.js";
+import type { TokenMinter } from "../jobs/potoken.js";
 
-import type { Config } from "./config.ts";
+import type { Config } from "./config.js";
 
 function callWatchEndpoint(
     videoId: string,

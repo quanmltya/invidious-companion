@@ -1,16 +1,20 @@
 import { Hono } from "hono";
-import type { HonoVariables } from "../../lib/types/HonoVariables.ts";
-import { verifyRequest } from "../../lib/helpers/verifyRequest.ts";
+import type { HonoVariables } from "../../lib/types/HonoVariables.js";
+import { verifyRequest } from "../../lib/helpers/verifyRequest.js";
 import {
     youtubePlayerParsing,
     youtubeVideoInfo,
-} from "../../lib/helpers/youtubePlayerHandling.ts";
-import type { CaptionTrackData } from "youtubei.js/dist/src/parser/classes/PlayerCaptionsTracklist.js";
-import { handleTranscripts } from "../../lib/helpers/youtubeTranscriptsHandling.ts";
+} from "../../lib/helpers/youtubePlayerHandling.js";
+// import type { CaptionTrackData } from "youtubei.js/dist/src/parser/classes/PlayerCaptionsTracklist.js";
+import { handleTranscripts } from "../../lib/helpers/youtubeTranscriptsHandling.js";
 import { HTTPException } from "hono/http-exception";
-import { validateVideoId } from "../../lib/helpers/validateVideoId.ts";
-import { TOKEN_MINTER_NOT_READY_MESSAGE } from "../../constants.ts";
+import { validateVideoId } from "../../lib/helpers/validateVideoId.js";
+import { TOKEN_MINTER_NOT_READY_MESSAGE } from "../../constants.js";
 
+type CaptionTrackData = {
+    name?: { text?: string };
+    language_code?: string;
+};
 interface AvailableCaption {
     label: string;
     languageCode: string;
@@ -94,11 +98,11 @@ captionsHandler.get("/:videoId", async (c) => {
 
     if (lang) {
         match = captionsTrackArray.find((c: CaptionTrackData) =>
-            c.language_code === lang
+            c?.language_code === lang
         );
     } else {
         match = captionsTrackArray.find((c: CaptionTrackData) =>
-            c.name.text === label
+            c?.name?.text === label
         );
     }
 

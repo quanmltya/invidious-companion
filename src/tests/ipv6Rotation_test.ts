@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { generateRandomIPv6 } from "../lib/helpers/ipv6Rotation.ts";
+import { generateRandomIPv6 } from "../lib/helpers/ipv6Rotation.js";
 
 describe("generateRandomIPv6 - generates valid IPv6 addresses", () => {
     it("generates valid IPv6 addresses", () => {

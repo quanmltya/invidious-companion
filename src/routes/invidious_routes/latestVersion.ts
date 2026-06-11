@@ -3,11 +3,11 @@ import { HTTPException } from "hono/http-exception";
 import {
     youtubePlayerParsing,
     youtubeVideoInfo,
-} from "../../lib/helpers/youtubePlayerHandling.ts";
-import { verifyRequest } from "../../lib/helpers/verifyRequest.ts";
-import { encryptQuery } from "../../lib/helpers/encryptQuery.ts";
-import { validateVideoId } from "../../lib/helpers/validateVideoId.ts";
-import { TOKEN_MINTER_NOT_READY_MESSAGE } from "../../constants.ts";
+} from "../../lib/helpers/youtubePlayerHandling.js";
+import { verifyRequest } from "../../lib/helpers/verifyRequest.js";
+import { encryptQuery } from "../../lib/helpers/encryptQuery.js";
+import { validateVideoId } from "../../lib/helpers/validateVideoId.js";
+import { TOKEN_MINTER_NOT_READY_MESSAGE } from "../../constants.js";
 
 const PRIVATE_PARAM_NAMES = ["pot", "ip"];
 

@@ -1,6 +1,10 @@
 import { Innertube } from "youtubei.js";
-import type { CaptionTrackData } from "youtubei.js/dist/src/parser/classes/PlayerCaptionsTracklist.js";
+// import type { CaptionTrackData } from "youtubei.js/dist/src/parser/classes/PlayerCaptionsTracklist.js";
 import { HTTPException } from "hono/http-exception";
+
+type CaptionTrackData = {
+    name?: { text?: string };
+};
 
 function formatMsToDigital(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
@@ -39,7 +43,7 @@ export async function handleTranscripts(
 
     const info = await innertubeClient.getInfo(videoId);
     const transcriptInfo = await (await info.getTranscript()).selectLanguage(
-        selectedCaption.name.text || "",
+        selectedCaption?.name?.text || "",
     );
     const rawTranscriptLines = transcriptInfo.transcript.content?.body
         ?.initial_segments;

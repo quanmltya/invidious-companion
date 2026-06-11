@@ -1,7 +1,8 @@
 import { fetch as undiciFetch, ProxyAgent, Agent, Pool } from "undici";
-import { retry, type RetryOptions } from "./retry.ts";
-import type { Config } from "./config.ts";
-import { generateRandomIPv6 } from "./ipv6Rotation.ts";
+import { retry, type RetryOptions } from "./retry.js";
+import type { Config } from "./config.js";
+import { generateRandomIPv6 } from "./ipv6Rotation.js";
+import { connect } from "net";
 
 type FetchInputParameter = Parameters<typeof fetch>[0];
 type FetchInitParameterWithDispatcher = RequestInit & { dispatcher?: any };
@@ -52,16 +53,21 @@ export const getFetchClient = (config: Config): {
                             return new Pool(origin, {
                                 ...opts,
                                 connect: {
-                                    ...opts?.connect,
                                     localAddress: localIp,
-                                },
+                                } as any,
                             });
                         },
                     });
                 } else {
                     dispatcher = new Agent({
-                        connect: {
-                            localAddress: localIp,
+                        connect: (opts, cb) => {
+                            const socket = connect({
+                                host: opts.hostname,
+                                port: Number(opts.port),
+                                localAddress: localIp,
+                            });
+
+                            cb(null, socket);
                         },
                     });
                 }
@@ -127,12 +133,12 @@ async function fetchShim(
     const fetchRetry = config.networking.fetch?.retry?.enabled;
 
     const callFetch = () =>
-        undiciFetch(input, {
+        fetch(input as any, {
             signal: fetchTimeout
                 ? AbortSignal.timeout(Number(fetchTimeout))
-                : null,
+                : undefined,
             ...(init || {}),
-        }) as unknown as Promise<Response>;
+        });
 
     return fetchRetry ? retry(callFetch, retryOptions) : callFetch();
 }

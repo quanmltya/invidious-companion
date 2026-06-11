@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { Config } from "./config.ts";
+import type { Config } from "./config.js";
 
 export const encryptQuery = (
     queryParams: string,

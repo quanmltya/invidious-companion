@@ -2,14 +2,14 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.SERVER_SECRET_KEY = "aaaaaaaaaaaaaaaa";
-const { run, tokenMinterReady } = await import("../main.ts");
+const { run, tokenMinterReady } = await import("../main.js");
 
-const { parseConfig } = await import("../lib/helpers/config.ts");
+const { parseConfig } = await import("../lib/helpers/config.js");
 const config = await parseConfig();
 
-import { dashManifest } from "./dashManifest.ts";
-import { youtubePlayer } from "./youtubePlayer.ts";
-import { latestVersion } from "./latestVersion.ts";
+import { dashManifest } from "./dashManifest.js";
+import { youtubePlayer } from "./youtubePlayer.js";
+import { latestVersion } from "./latestVersion.js";
 
 describe("Checking if Invidious companion works", () => {
     const controller = new AbortController();

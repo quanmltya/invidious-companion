@@ -1,8 +1,8 @@
 import type { Context, Hono } from "hono";
 import { z } from "zod";
 import { HTTPException } from "hono/http-exception";
-import { verifyRequest } from "../../lib/helpers/verifyRequest.ts";
-import { validateVideoId } from "../../lib/helpers/validateVideoId.ts";
+import { verifyRequest } from "../../lib/helpers/verifyRequest.js";
+import { validateVideoId } from "../../lib/helpers/validateVideoId.js";
 
 const DownloadWidgetSchema = z.union([
     z.object({ label: z.string(), ext: z.string() }).strict(),

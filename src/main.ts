@@ -2,19 +2,19 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { createAdaptorServer } from "@hono/node-server";
 import { existsSync, unlinkSync, chmodSync } from "node:fs";
-import { companionRoutes, miscRoutes } from "./routes/index.ts";
+import { companionRoutes, miscRoutes } from "./routes/index.js";
 import { Innertube, Platform } from "youtubei.js";
-import { poTokenGenerate, type TokenMinter } from "./lib/jobs/potoken.ts";
-import { USER_AGENT } from "bgutils";
-import { retry } from "./lib/helpers/retry.ts";
-import type { HonoVariables } from "./lib/types/HonoVariables.ts";
+import { poTokenGenerate, type TokenMinter } from "./lib/jobs/potoken.js";
+import { USER_AGENT } from "bgutils-js";
+import { retry } from "./lib/helpers/retry.js";
+import type { HonoVariables } from "./lib/types/HonoVariables.js";
 import minimist from "minimist";
 
-import { parseConfig } from "./lib/helpers/config.ts";
+import { parseConfig } from "./lib/helpers/config.js";
 const config = await parseConfig();
-import { Metrics } from "./lib/helpers/metrics.ts";
-import { PLAYER_ID } from "./constants.ts";
-import { jsInterpreter } from "./lib/helpers/jsInterpreter.ts";
+import { Metrics } from "./lib/helpers/metrics.js";
+import { PLAYER_ID } from "./constants.js";
+import { jsInterpreter } from "./lib/helpers/jsInterpreter.js";
 
 const args = minimist(process.argv.slice(2));
 

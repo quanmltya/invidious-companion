@@ -3,9 +3,9 @@ import { Innertube } from "youtubei.js";
 import {
     youtubePlayerParsing,
     youtubeVideoInfo,
-} from "../helpers/youtubePlayerHandling.ts";
-import type { Config } from "../helpers/config.ts";
-import { Metrics } from "../helpers/metrics.ts";
+} from "../helpers/youtubePlayerHandling.js";
+import type { Config } from "../helpers/config.js";
+import { Metrics } from "../helpers/metrics.js";
 
 let getFetchClientLocation = "../helpers/getFetchClient.js";
 if (process.env.GET_FETCH_CLIENT_LOCATION) {
@@ -13,8 +13,8 @@ if (process.env.GET_FETCH_CLIENT_LOCATION) {
 }
 const { getFetchClient } = await import(getFetchClientLocation);
 
-import { InputMessage, OutputMessageSchema } from "./worker.ts";
-import { PLAYER_ID } from "../../constants.ts";
+import { InputMessage, OutputMessageSchema } from "./worker.js";
+import { PLAYER_ID } from "../../constants.js";
 
 // Polyfill Promise.withResolvers for older Node.js versions
 function withResolvers<T>() {

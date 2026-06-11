@@ -1,11 +1,11 @@
 import { parentPort, isMainThread } from "node:worker_threads";
 import { z } from "zod";
-import { Config, ConfigSchema } from "../helpers/config.ts";
-import { BG, buildURL, GOOG_API_KEY, USER_AGENT } from "bgutils";
-import type { WebPoSignalOutput } from "bgutils";
+import { Config, ConfigSchema } from "../helpers/config.js";
+import { BG, buildURL, GOOG_API_KEY, USER_AGENT } from "bgutils-js";
+import type { WebPoSignalOutput } from "bgutils-js";
 import { JSDOM } from "jsdom";
 import { Innertube } from "youtubei.js";
-import { PLAYER_ID } from "../../constants.ts";
+import { PLAYER_ID } from "../../constants.js";
 
 let getFetchClientLocation = "../helpers/getFetchClient.js";
 if (process.env.GET_FETCH_CLIENT_LOCATION) {

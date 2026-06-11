@@ -25,7 +25,7 @@ describe("Secret key validation in Invidious companion config", () => {
         for (const key of validKeys) {
             process.env.SERVER_SECRET_KEY = key;
             // Need to re-import parseConfig with fresh env so we use dynamic import trick
-            const { parseConfig } = await import("../lib/helpers/config.ts");
+            const { parseConfig } = await import("../lib/helpers/config.js");
             const config = await parseConfig();
             assert.equal(
                 config.server.secret_key,
@@ -51,7 +51,7 @@ describe("Secret key validation in Invidious companion config", () => {
 
         for (const key of invalidKeys) {
             process.env.SERVER_SECRET_KEY = key;
-            const { parseConfig } = await import("../lib/helpers/config.ts");
+            const { parseConfig } = await import("../lib/helpers/config.js");
             await assert.rejects(
                 async () => parseConfig(),
                 (err: Error) => {
@@ -73,7 +73,7 @@ describe("Secret key validation in Invidious companion config", () => {
 
         for (const key of wrongLengthKeys) {
             process.env.SERVER_SECRET_KEY = key;
-            const { parseConfig } = await import("../lib/helpers/config.ts");
+            const { parseConfig } = await import("../lib/helpers/config.js");
             await assert.rejects(
                 async () => parseConfig(),
                 (err: Error) => {
@@ -86,7 +86,7 @@ describe("Secret key validation in Invidious companion config", () => {
 
     it("validates error message content - special chars", async () => {
         process.env.SERVER_SECRET_KEY = "my#key!123456789";
-        const { parseConfig } = await import("../lib/helpers/config.ts");
+        const { parseConfig } = await import("../lib/helpers/config.js");
         await assert.rejects(
             async () => parseConfig(),
             (err: Error) => {
@@ -103,7 +103,7 @@ describe("Secret key validation in Invidious companion config", () => {
 
     it("validates error message content - short key", async () => {
         process.env.SERVER_SECRET_KEY = "short";
-        const { parseConfig } = await import("../lib/helpers/config.ts");
+        const { parseConfig } = await import("../lib/helpers/config.js");
         await assert.rejects(
             async () => parseConfig(),
             (err: Error) => {
@@ -120,7 +120,7 @@ describe("Secret key validation in Invidious companion config", () => {
 
     it("rejects missing SERVER_SECRET_KEY", async () => {
         delete process.env.SERVER_SECRET_KEY;
-        const { parseConfig } = await import("../lib/helpers/config.ts");
+        const { parseConfig } = await import("../lib/helpers/config.js");
         await assert.rejects(
             async () => parseConfig(),
             (err: Error) => {

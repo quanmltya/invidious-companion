@@ -1,9 +1,23 @@
 import { ApiResponse, Innertube, YT } from "youtubei.js";
-import { generateRandomString } from "youtubei.js/dist/src/utils/Utils.js";
+// import { generateRandomString } from "youtubei.js/dist/src/utils/Utils.js";
 import { brotliCompressSync as compress, brotliDecompressSync as decompress } from "node:zlib";
-import type { TokenMinter } from "../jobs/potoken.ts";
-import { Metrics } from "../helpers/metrics.ts";
-import { FileKv } from "./kv.ts";
+import type { TokenMinter } from "../jobs/potoken.js";
+import { Metrics } from "../helpers/metrics.js";
+import { FileKv } from "./kv.js";
+
+// Replace generateRandomString from import
+function generateRandomString(length: number): string {
+    const chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    let result = "";
+
+    for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    return result;
+}
 
 let youtubePlayerReqLocation = "./youtubePlayerReq.js";
 if (process.env.YT_PLAYER_REQ_LOCATION) {
@@ -11,7 +25,7 @@ if (process.env.YT_PLAYER_REQ_LOCATION) {
 }
 const { youtubePlayerReq } = await import(youtubePlayerReqLocation);
 
-import type { Config } from "./config.ts";
+import type { Config } from "./config.js";
 
 let kv: FileKv | undefined;
 const getKv = (cacheDir: string) => {

@@ -1,7 +1,7 @@
 import { Innertube } from "youtubei.js";
-import type { TokenMinter } from "../jobs/potoken.ts";
-import type { Config } from "../helpers/config.ts";
-import { Metrics } from "../helpers/metrics.ts";
+import type { TokenMinter } from "../jobs/potoken.js";
+import type { Config } from "../helpers/config.js";
+import { Metrics } from "../helpers/metrics.js";
 
 export type HonoVariables = {
     innertubeClient: Innertube;

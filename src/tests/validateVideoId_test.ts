@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { validateVideoId } from "../lib/helpers/validateVideoId.ts";
+import { validateVideoId } from "../lib/helpers/validateVideoId.js";
 
 describe("Video ID validation", () => {
     it("accepts valid YouTube video IDs", () => {
