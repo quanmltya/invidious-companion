@@ -99,11 +99,13 @@ export const poTokenGenerate = (
         // worker is initialised and has passed back a session token and visitor data
         if (parsedMessage.type === "initialised") {
             try {
+                const fetchImpl = await getFetchClient(config);
+
                 const instantiatedInnertubeClient = await Innertube.create({
                     enable_session_cache: false,
                     po_token: parsedMessage.sessionPoToken,
                     visitor_data: parsedMessage.visitorData,
-                    fetch: getFetchClient(config),
+                    fetch: fetchImpl,
                     generate_session_locally: true,
                     cookie: config.youtube_session.cookies || undefined,
                     player_id: PLAYER_ID,
@@ -196,6 +198,8 @@ async function checkToken({
                     `[INFO] Validating PO token with video: ${video.id}`,
                 );
 
+                // console.log("PO token:", instantiatedInnertubeClient.session.po_token);
+
                 const youtubePlayerResponseJson = await youtubePlayerParsing({
                     innertubeClient: instantiatedInnertubeClient,
                     videoId: video.id,
@@ -212,6 +216,7 @@ async function checkToken({
 
                 const validFormat = videoInfo.streaming_data
                     ?.adaptive_formats[0];
+                // console.log("Format URL:", validFormat?.url?.substring(0, 300));
                 if (!validFormat) {
                     console.log(
                         `[WARN] No valid format found for video ${video.id}, trying next video`,
@@ -219,14 +224,29 @@ async function checkToken({
                     continue;
                 }
 
-                const result = await fetchImpl(validFormat?.url, {
-                    method: "HEAD",
+                console.log("Validation URL:", validFormat.url);
+                const result = await fetchImpl(validFormat.url, {
+                    method: "GET",
+                    headers: {
+                        Range: "bytes=0-0",
+                    },
                 });
 
-                if (result.status !== 200) {
-                    console.log(
-                        `[WARN] Got status ${result.status} for video ${video.id}, trying next video`,
-                    );
+                /*console.log({
+                    status: result.status,
+                    statusText: result.statusText,
+                });*/
+                const validStatuses = [200, 206];
+
+                if (!validStatuses.includes(result.status)) {
+                    const body = await result.text().catch(() => "");
+
+                    /*console.log({
+                        status: result.status,
+                        statusText: result.statusText,
+                        body: body.substring(0, 500),
+                    });*/
+
                     continue;
                 } else {
                     console.log(

@@ -210,12 +210,25 @@ async function setup(
             body: JSON.stringify([requestKey, botguardResponse]),
         },
     );
-    const integrityTokenBody = IntegrityTokenResponse.parse(
-        await integrityTokenResponse.json(),
-    );
+
+    const raw = await integrityTokenResponse.json();
+
+    // console.log(raw);
+    /* Réponses look like this, with the integrity token being the 4th element in the array
+    [
+        null,
+        43200,
+        null,
+        'Mk8YM_j0tlg2oBhwN_2Zr3a2Zo7786kEi_9Vl-LqWrBhF1s6nM-Ijlno3emWn1PxS6Jd176lItitOwD6RsgynXomvisXusZ1bxFsLrYEOr4n'
+    ]
+    */
+
+    const integrityToken = raw[3];
+
+    // console.log("integrityToken =", integrityToken);
 
     const integrityTokenBasedMinter = await BG.WebPoMinter.create({
-        integrityToken: integrityTokenBody[0],
+        integrityToken,
     }, webPoSignalOutput);
 
     const sessionPoToken = await integrityTokenBasedMinter.mintAsWebsafeString(
